@@ -1,22 +1,28 @@
 <?php
-// crawler.php — simple fetcher to add pages to DB from seed list
+// crawler.php — optional simple crawler that saves pages to DB from seed urls
 if (!file_exists(__DIR__ . '/config.php')) { echo "Please configure config.php\n"; exit(1); }
 $cfg = include __DIR__ . '/config.php';
-$dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4;',$cfg['db_host'],$cfg['db_port'],$cfg['db_name']);
-$pdo = new PDO($dsn, $cfg['db_user'], $cfg['db_pass'], [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-$seedFile = $argv[1] ?? 'seed_urls.txt';
-if (!file_exists($seedFile)) { echo "Seed file not found: $seedFile\n"; exit(1); }
-$seeds = file($seedFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+if ($cfg['mode'] === 'sqlite') {
+    $pdo = new PDO('sqlite:' . $cfg['sqlite_path']);
+} else {
+    $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4;',$cfg['db_host'],$cfg['db_port'],$cfg['db_name']);
+    $pdo = new PDO($dsn, $cfg['db_user'], $cfg['db_pass']);
+}
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-function fetch_url($url) {
-    $opts = ['http'=>['user_agent'=>'MiniBot/1.0','timeout'=>10]];
+$seed = $argv[1] ?? 'seed_urls.txt';
+if (!file_exists($seed)) { echo "Seed file missing: $seed\n"; exit(1); }
+$urls = file($seed, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+function fetch($url) {
+    $opts=['http'=>['user_agent'=>'MiniBot/1.0','timeout'=>10]];
     $ctx = stream_context_create($opts);
-    $html = @file_get_contents($url, false, $ctx);
-    return $html ?: '';
+    $html = @file_get_contents($url,false,$ctx);
+    return $html?:'';
 }
 function extract_text($html) {
-    $html = preg_replace('#<script.*?</script>#is', '', $html);
-    $html = preg_replace('#<style.*?</style>#is', '', $html);
+    $html = preg_replace('#<script.*?</script>#is','',$html);
+    $html = preg_replace('#<style.*?</style>#is','',$html);
     $dom = new DOMDocument();
     @$dom->loadHTML('<?xml encoding="utf-8" ?>' . $html);
     $title = '';
@@ -28,16 +34,16 @@ function extract_text($html) {
     $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     return [trim($title), trim($text)];
 }
+
 $ins = $pdo->prepare('INSERT INTO pages (url, title, content, length) VALUES (?, ?, ?, ?)');
-foreach ($seeds as $url) {
-    echo "Fetching: $url\n";
-    $html = fetch_url($url);
-    if (!$html) { echo "Failed: $url\n"; continue; }
+foreach ($urls as $u) {
+    echo "Fetching: $u\n";
+    $html = fetch($u);
+    if (!$html) { echo "Failed: $u\n"; continue; }
     list($title,$text) = extract_text($html);
     $len = mb_strlen($text,'UTF-8');
-    $ins->execute([$url, $title, $text, $len]);
-    echo "Saved: $url (len={$len})\n";
+    $ins->execute([$u, $title, $text, $len]);
+    echo "Saved: $u\n";
 }
-// update meta
 $pdo->exec("UPDATE meta SET v = (SELECT COUNT(*) FROM pages) WHERE k='doc_count'");
-echo "Crawler finished.\n";
+echo "Crawler done.\n";
