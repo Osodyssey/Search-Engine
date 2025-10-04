@@ -1,0 +1,9 @@
+<?php
+// copy this to config.php and change values
+return [
+  'db_host' => '127.0.0.1',
+  'db_name' => 'search_engine',
+  'db_user' => 'searchuser',
+  'db_pass' => 'your_password',
+  'db_port' => 3306,
+];
