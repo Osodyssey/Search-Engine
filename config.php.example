@@ -1,9 +1,16 @@
 <?php
-// copy this to config.php and change values
+// Copy to config.php and choose mode: 'sqlite' or 'mysql'.
+// For sqlite the project creates search.db in project root.
+// For mysql set DB credentials below.
 return [
+  // 'mode' => 'sqlite', // use this for local file DB
+  'mode' => 'sqlite',
+  // MySQL settings (used only if mode = 'mysql')
   'db_host' => '127.0.0.1',
   'db_name' => 'search_engine',
   'db_user' => 'searchuser',
   'db_pass' => 'your_password',
   'db_port' => 3306,
+  // sqlite file path (used when mode=sqlite)
+  'sqlite_path' => __DIR__ . '/search.db',
 ];
